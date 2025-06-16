@@ -144,6 +144,8 @@ Replace in Arduino code:
 
 String API = "YOUR_WRITE_API_KEY";
 
+In case you want to view the thingspeak channel for this project go to https://thingspeak.mathworks.com/channels/2869451
+
 Expected Output
 
 Values printed on serial monitor
