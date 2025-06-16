@@ -1,8 +1,8 @@
-**🛰️ Air Pollution Monitoring System with GSM & ThingSpeak**
+**Air Pollution Monitoring System with GSM & ThingSpeak**
 
 A real-time IoT-based air quality monitoring system that detects harmful gases in the environment using MQ-series sensors and transmits data via GSM (SIM800L) to a cloud platform (ThingSpeak) for visualization and alerting. This system is designed for deployment in regions affected by pollution to enable accessible, remote air quality monitoring.
 
-**📋 Table of Contents**
+**Table of Contents**
 
 Overview
 
@@ -28,11 +28,11 @@ Contributing
 
 License
 
-**📖 Overview**
+**Overview**
 
 This system continuously monitors air quality using MQ-7 (Carbon Monoxide) and MQ-135 (Air Quality) gas sensors. Sensor data is processed by an Arduino board and transmitted over GSM to ThingSpeak. Users can remotely monitor air quality levels and receive alerts based on thresholds.
 
-**⚙️ System Features**
+**System Features**
 
 Real-time air quality monitoring (CO, NH₃, NOₓ, Benzene, etc.)
 
@@ -44,7 +44,7 @@ LED & buzzer alerts for unsafe air levels
 
 Expandable design for additional sensors or IoT integration
 
-**🔩 Hardware Components**
+**Hardware Components**
 
 Component
 
@@ -90,7 +90,8 @@ Power source
 
 9V/12V battery or power supply
 
-🖼️ Circuit Diagram
+Circuit Diagram
+
 You can check out the circuit diagram  on " https://app.cirkitdesigner.com/project/330d60c6-4585-4c9c-b3df-c3cab3c22ea2 ".
 
 **⚙️ How It Works**
@@ -105,7 +106,7 @@ GSM Transmission: Arduino communicates with SIM800L to send data to ThingSpeak.
 
 Cloud Dashboard: ThingSpeak plots data on graphs for remote monitoring.
 
-**🛠 Installation & Setup**
+**Installation & Setup**
 
 Connect Hardware:
 
@@ -131,7 +132,7 @@ Add your ThingSpeak channel details and SIM800L APN credentials.
 
 Upload to Arduino.
 
-🌐 ThingSpeak Configuration
+ThingSpeak Configuration
 
 Create a ThingSpeak account.
 
@@ -143,7 +144,7 @@ Replace in Arduino code:
 
 String API = "YOUR_WRITE_API_KEY";
 
-📊 Expected Output
+Expected Output
 
 Values printed on serial monitor
 
@@ -151,7 +152,7 @@ LED turns on + buzzer sounds when gas concentration exceeds safe limits
 
 Data appears on ThingSpeak graphs
 
-**🧪 Troubleshooting**
+**Troubleshooting**
 
 Problem and Solution
 
@@ -172,7 +173,7 @@ Reboots when GSM sends data
 
 Use capacitor (e.g., 1000µF) near SIM800L
 
-**🌍 Use Cases**
+**Use Cases**
 
 Urban air quality monitoring
 
