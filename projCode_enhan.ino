@@ -1,115 +1,115 @@
 #include <SoftwareSerial.h>
+#include <math.h>
 
-// Pin assignments
-const int MQ7_PIN = A0;   
-const int MQ135_PIN = A1; 
-const int BUZZER_PIN = 8;
-const int LED_PIN = 9;   
+// Pin Definitions
+#define MQ7_PIN A0
+#define MQ135_PIN A1
+#define BUZZER_PIN 8
+#define LED_PIN 9
 
-// SIM800L GSM Module connections
-SoftwareSerial gprsSerial(10, 11); // RX, TX
+SoftwareSerial gprsSerial(10, 11); // RX, TX for SIM800L
 
-// ThingSpeak API settings
+//ThingSpeak Settings 
 String apiKey = "9HH5UC4ZTODQ0QD9";
 String server = "api.thingspeak.com";
-String field1 = "CO readings";
-String field2 = "Air Quality Readings";
+String field1 = "Carbonmonoxide  readings";
+String field2 = "AQ and CO2 Readings";
 
-// Pollution thresholds
-const int MQ7_THRESHOLD = 150;   
-const int MQ135_THRESHOLD = 300; 
+String apn = "internet";     
+
+//Sensor Calibration Constants
+float MQ7_R0 = 10.0;  
+float MQ135_R0 = 5.0;    
+float RL = 10.0;         
+
+// Datasheet log-log slope values
+float MQ7_a = -0.77, MQ7_b = 1.699;
+float MQ135_a = -0.263, MQ135_b = 0.42;
+
+//Function Prototypes
+int readSensorAverage(int pin, int samples = 10);
+float getPPM(int analogVal, float R0, float a, float b);
+void triggerAlert();
+void sendToThingSpeak(float mq7, float mq135);
+bool isGSMReady();
+void runGSMDiagnostics();
+void ShowSerialData();
 
 void setup() {
   Serial.begin(9600);
   gprsSerial.begin(9600);
-  delay(1000);
 
   pinMode(BUZZER_PIN, OUTPUT);
   pinMode(LED_PIN, OUTPUT);
 
-  Serial.println("Initializing GSM Module...");
-  setupGPRS();
+  Serial.println("Air Pollution Monitoring System Starting...");
+  delay(2000);
+
+  runGSMDiagnostics();  // Initial AT check + setup
 }
 
 void loop() {
-  int mq7Value = analogRead(MQ7_PIN);   // CO sensor reading
-  int mq135Value = analogRead(MQ135_PIN); // Air quality sensor reading
+  //Sensor Readings
+  int mq7Raw = readSensorAverage(MQ7_PIN);
+  int mq135Raw = readSensorAverage(MQ135_PIN);
 
-  Serial.print("MQ-7 (CO) Reading: ");
-  Serial.println(mq7Value);
-  Serial.print("MQ-135 (Air Quality) Reading: ");
-  Serial.println(mq135Value);
+  float mq7PPM = getPPM(mq7Raw, MQ7_R0, MQ7_a, MQ7_b);
+  float mq135PPM = getPPM(mq135Raw, MQ135_R0, MQ135_a, MQ135_b);
 
-  if (mq7Value > MQ7_THRESHOLD || mq135Value > MQ135_THRESHOLD) {
+  Serial.print("MQ-7 (CO): ");
+  Serial.print(mq7PPM);
+  Serial.println(" ppm");
+
+  Serial.print("MQ-135 (Air Quality): ");
+  Serial.print(mq135PPM);
+  Serial.println(" ppm");
+
+  // Alert System
+  if (mq7PPM > 40 || mq135PPM > 40) {
     triggerAlert();
   } else {
     digitalWrite(BUZZER_PIN, LOW);
     digitalWrite(LED_PIN, LOW);
   }
 
-  sendDataToThingSpeak(mq7Value, mq135Value);
-  delay(15000); // Wait for 15 seconds
+  //Send to ThingSpeak 
+  if (isGSMReady()) {
+    sendToThingSpeak(mq7PPM, mq135PPM);
+  } else {
+    Serial.println("GSM not ready. Skipping upload.");
+  }
+
+  delay(20000); // 20 seconds interval
 }
 
-// Function to set up GPRS connection
-void setupGPRS() {
-  gprsSerial.println("AT"); 
-  delay(1000);
-  ShowSerialData();
+// Function Definitions
 
-  gprsSerial.println("AT+CPIN?");
-  delay(1000);
-  ShowSerialData();
-
-  gprsSerial.println("AT+CREG?");
-  delay(1000);
-  ShowSerialData();
-
-  gprsSerial.println("AT+CGATT?");
-  delay(1000);
-  ShowSerialData();
-
-  gprsSerial.println("AT+CIPSHUT");
-  delay(1000);
-  ShowSerialData();
-
-  gprsSerial.println("AT+CIPSTATUS");
-  delay(2000);
-  ShowSerialData();
-
-  gprsSerial.println("AT+CIPMUX=0");
-  delay(2000);
-  ShowSerialData();
-
-  gprsSerial.println("AT+CSTT=\"internet\",\"\",\"\""); 
-  delay(1000);
-  ShowSerialData();
-
-  gprsSerial.println("AT+CIICR");
-  delay(3000);
-  ShowSerialData();
-
-  gprsSerial.println("AT+CIFSR");
-  delay(2000);
-  ShowSerialData();
-
-  gprsSerial.println("AT+CIPSPRT=0");
-  delay(3000);
-  ShowSerialData();
+int readSensorAverage(int pin, int samples) {
+  long total = 0;
+  for (int i = 0; i < samples; i++) {
+    total += analogRead(pin);
+    delay(50);
+  }
+  return total / samples;
 }
 
-// Function to trigger alerts
+float getPPM(int analogVal, float R0, float a, float b) {
+  float voltage = (analogVal / 1023.0) * 5.0;
+  float Rs = (5.0 - voltage) * RL / voltage;
+  float ratio = Rs / R0;
+  return pow(10, (log10(ratio) - b) / a);
+}
+
 void triggerAlert() {
-  Serial.println("Pollution detected! Triggering alert...");
+  Serial.println("ALERT: Pollutant threshold exceeded!");
   digitalWrite(BUZZER_PIN, HIGH);
   digitalWrite(LED_PIN, HIGH);
 }
 
-// Function to send data to ThingSpeak
-void sendDataToThingSpeak(int mq7Value, int mq135Value) {
-  Serial.println("Connecting to ThingSpeak...");
+void sendToThingSpeak(float mq7, float mq135) {
+  String data = "GET /update?api_key=" + apiKey + "&field1=" + String(mq7) + "&field2=" + String(mq135);
 
-  String data = "GET /update?api_key=" + apiKey + "&field1=" + String(mq7Value) + "&field2=" + String(mq135Value);
+  Serial.println("Sending data to ThingSpeak...");
 
   gprsSerial.println("AT+CIPSTART=\"TCP\",\"" + server + "\",80");
   delay(5000);
@@ -120,10 +120,8 @@ void sendDataToThingSpeak(int mq7Value, int mq135Value) {
   ShowSerialData();
 
   gprsSerial.println(data);
-  Serial.println("Sent to ThingSpeak: " + data);
-  delay(1000);
-
-  gprsSerial.write(26); 
+  delay(100);
+  gprsSerial.write(26); // Ctrl+Z
   delay(5000);
   ShowSerialData();
 
@@ -132,7 +130,68 @@ void sendDataToThingSpeak(int mq7Value, int mq135Value) {
   ShowSerialData();
 }
 
-// Function to display SIM800L for troubleshooting
+bool isGSMReady() {
+  Serial.println("Checking GSM readiness...");
+
+  gprsSerial.println("AT+CPIN?");
+  delay(1000);
+  ShowSerialData();
+
+  gprsSerial.println("AT+CREG?");
+  delay(1000);
+  ShowSerialData();
+
+  gprsSerial.println("AT+CSQ");
+  delay(1000);
+  ShowSerialData();
+
+  gprsSerial.println("AT+COPS?");
+  delay(1000);
+  ShowSerialData();
+
+  return true;
+}
+
+void runGSMDiagnostics() {
+  Serial.println("Running GSM startup diagnostics...");
+
+  gprsSerial.println("AT");
+  delay(1000);
+  ShowSerialData();
+
+  gprsSerial.println("AT+CPIN?");
+  delay(1000);
+  ShowSerialData();
+
+  gprsSerial.println("AT+CSQ");
+  delay(1000);
+  ShowSerialData();
+
+  gprsSerial.println("AT+CREG?");
+  delay(1000);
+  ShowSerialData();
+
+  gprsSerial.println("AT+COPS?");
+  delay(2000);
+  ShowSerialData();
+
+  gprsSerial.println("AT+CIPSHUT");
+  delay(1000);
+  ShowSerialData();
+
+  gprsSerial.println("AT+CSTT=\"" + apn + "\",\"\",\"\""); // Set your APN
+  delay(2000);
+  ShowSerialData();
+
+  gprsSerial.println("AT+CIICR");
+  delay(3000);
+  ShowSerialData();
+
+  gprsSerial.println("AT+CIFSR");
+  delay(2000);
+  ShowSerialData();
+}
+
 void ShowSerialData() {
   while (gprsSerial.available()) {
     Serial.write(gprsSerial.read());
